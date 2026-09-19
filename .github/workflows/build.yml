@@ -20,9 +20,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run host tests
-        run: python -m unittest discover -s scripts/tests -v
-
       - name: Build ESP32-C3 firmware
         shell: bash
         run: |
@@ -31,6 +28,11 @@ jobs:
             --name folo-ai-passport-c3 \
             --language zh-CN \
             --wake-word nihaoxiaozhi
+
+      # scripts/build.py runs idf.py reconfigure first, which restores the
+      # locked managed components used by the repository-level tests.
+      - name: Run host tests
+        run: python -m unittest discover -s scripts/tests -v
 
       - name: Upload merged firmware
         uses: actions/upload-artifact@v4
