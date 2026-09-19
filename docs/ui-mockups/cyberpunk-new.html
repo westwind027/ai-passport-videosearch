@@ -1,0 +1,1945 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AI Passport · 赛博朋克全新重构 UI 规范与原型 (ESP32-C3 240×320)</title>
+<style>
+  /* ============================================================
+     CYBERPUNK 2077 // TACTICAL NETRUNNER UI SPECIFICATION
+     纯正赛博朋克机能风 · 彻底摒弃传统普通文字与黑底方块
+     设计特征:
+       - 45° 倒角切角多边形 (Chamfer / Chiseled Cuts)
+       - 赛博朋克标志色彩: 赛博黄 (#FCEE0A) x 电光青 (#00F0FF) x 霓虹赤红 (#FF003C)
+       - 战术标尺 (Tactical Ticks) 与微型十六进制系统数据 (Telemetry)
+       - 斑马警示线条 (Hazard Stripes ///)
+       - 100% 严苛适配 ESP32-C3 (240x320 竖屏 / 320x240 横屏)，极低 LVGL 开销
+     ============================================================ */
+  :root {
+    --cp-yellow: #fcee0a;
+    --cp-cyan: #00f0ff;
+    --cp-red: #ff003c;
+    --cp-green: #00ff66;
+    --cp-bg: #090b10;
+    --cp-card: #121622;
+    --cp-card-border: #1e2638;
+    --cp-text-main: #f0f4fc;
+    --cp-text-muted: #5e738c;
+    --font-ui: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-tech: "JetBrains Mono", ui-monospace, Consolas, "Courier New", monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #04060a;
+    color: #cdd9e5;
+    font-family: var(--font-ui);
+    padding: 32px 24px;
+    background-image: 
+      linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* 顶部赛博横幅 */
+  .cp-banner {
+    border-left: 4px solid var(--cp-yellow);
+    background: linear-gradient(90deg, rgba(252, 238, 10, 0.08) 0%, rgba(0, 240, 255, 0.02) 100%);
+    padding: 16px 20px;
+    margin-bottom: 32px;
+    border-bottom: 1px solid #1a2333;
+    position: relative;
+    overflow: hidden;
+  }
+  .cp-banner::after {
+    content: "NETRUNNER ESP32-C3";
+    position: absolute;
+    right: 16px; bottom: 8px;
+    font-family: var(--font-tech);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: #2a3b52;
+    font-weight: bold;
+  }
+  .cp-banner h1 {
+    font-size: 24px;
+    color: #fff;
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .cp-banner h1 span.tag {
+    background: var(--cp-yellow);
+    color: #000;
+    font-size: 11px;
+    padding: 2px 6px;
+    font-weight: 900;
+    font-family: var(--font-tech);
+    clip-path: polygon(0 0, 100% 0, 88% 100%, 0 100%);
+  }
+  .cp-banner p {
+    font-size: 13px;
+    color: #8da4be;
+    margin-top: 6px;
+    max-width: 950px;
+    line-height: 1.6;
+  }
+
+  /* 赛博调色卡 */
+  .palette-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .swatch {
+    background: #0d121c;
+    border: 1px solid #1f2b3e;
+    padding: 4px 10px;
+    font-size: 10px;
+    font-family: var(--font-tech);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .swatch i {
+    width: 10px;
+    height: 10px;
+    display: inline-block;
+  }
+
+  /* 栏目划分 */
+  .section-head {
+    margin: 40px 0 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-head h2 {
+    font-size: 17px;
+    color: #fff;
+    letter-spacing: 1.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-head h2::before {
+    content: "";
+    color: var(--cp-yellow);
+    font-family: var(--font-tech);
+  }
+  .section-head.cyan h2::before { color: var(--cp-cyan); }
+  .section-head.red h2::before { color: var(--cp-red); }
+  .section-head .line {
+    flex: 1;
+    height: 1px;
+    background: #192436;
+  }
+
+  /* 栅格画廊 */
+  .gallery-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    align-items: flex-start;
+  }
+  .screen-unit {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .screen-unit .caption {
+    font-size: 12px;
+    color: #8fa6bd;
+    text-align: center;
+    font-family: var(--font-tech);
+  }
+  .screen-unit .caption b { color: var(--cp-yellow); font-weight: normal; }
+  .screen-unit .caption em { color: #536b85; font-style: normal; margin-left: 4px; }
+
+  /* 物理屏幕窗口 (240x320 物理放大 1.7x) */
+  .frame-viewport {
+    width: 408px;
+    height: 544px;
+    overflow: hidden;
+    position: relative;
+    background: #000;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.85), 0 0 0 1px #1d2738;
+    border-radius: 6px;
+  }
+  .frame-viewport.landscape {
+    width: 544px;
+    height: 408px;
+  }
+
+  /* 240x320 原生 LCD 渲染区 */
+  .lcd-canvas {
+    width: 240px;
+    height: 320px;
+    transform: scale(1.7);
+    transform-origin: top left;
+    position: relative;
+    background: var(--cp-bg);
+    color: var(--cp-text-main);
+    overflow: hidden;
+    user-select: none;
+  }
+  .lcd-canvas.landscape-mode {
+    width: 320px;
+    height: 240px;
+  }
+
+  /* 扫描线 overlay：放弃，无对应硬件/LVGL能力，且影响清晰度 */
+  .scanline-overlay {
+    display: none;
+  }
+
+  /* ============================================================
+     赛博通用组件 (LVGL 完全兼容：纯色/切角/细边框/文本)
+     ============================================================ */
+
+  /* 1. 战术顶栏 (Tactical Top Header - 高度 28px) */
+  .hud-topbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 28px;
+    background: #0a0e17;
+    border-bottom: 1px solid #1a2538;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6px;
+    font-family: var(--font-tech);
+    z-index: 10;
+  }
+  .hud-brand {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .hud-brand-tag {
+    background: var(--cp-yellow);
+    color: #000;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+  .hud-brand-text {
+    font-size: 11px;
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .hud-sysinfo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: #8da4be;
+  }
+  .hud-time {
+    color: #fff;
+    font-weight: bold;
+  }
+  /* 战术 Wi-Fi 信号阶梯 */
+  .tactical-sig {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 1.5px;
+    height: 9px;
+  }
+  .tactical-sig span {
+    width: 2px;
+    background: #1c2738;
+  }
+  .tactical-sig span.on { background: var(--cp-cyan); }
+  .tactical-sig.yellow span.on { background: var(--cp-yellow); }
+  .tactical-sig.red span.on { background: var(--cp-red); }
+  /* 战术电池盒 */
+  .tactical-batt {
+    border: 1px solid #4a617a;
+    padding: 1px;
+    height: 8px;
+    display: inline-flex;
+    gap: 1px;
+    position: relative;
+  }
+  .tactical-batt::after {
+    content: "";
+    position: absolute;
+    right: -2px; top: 1px; bottom: 1px;
+    width: 1px;
+    background: #4a617a;
+  }
+  .tactical-batt i {
+    width: 2.5px;
+    height: 4px;
+    background: var(--cp-green);
+  }
+
+  /* 2. 战术状态子横条 (Sub-Header Telemetry - 18px) */
+  .hud-subbar {
+    position: absolute;
+    top: 28px; left: 0; right: 0;
+    height: 18px;
+    background: #0d121c;
+    border-bottom: 1px solid #1e2b40;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    font-family: var(--font-tech);
+    font-size: 10px;
+    color: var(--cp-text-muted);
+    letter-spacing: 0.5px;
+    z-index: 10;
+  }
+  .hud-subbar .hud-mode {
+    color: var(--cp-cyan);
+    font-weight: bold;
+  }
+  .hud-subbar .hud-mode.yellow { color: var(--cp-yellow); }
+  .hud-subbar .hud-mode.red { color: var(--cp-red); }
+
+  /* 3. 战术底部按键提示槽 (Tactical Footer - 30px) */
+  .hud-footer {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 28px;
+    background: #0a0d16;
+    border-top: 1px solid #1a2538;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    font-family: var(--font-tech);
+    font-size: 10px;
+    z-index: 10;
+  }
+  .hud-footer.three-col {
+    grid-template-columns: 1fr 1.2fr 1fr;
+  }
+  .hud-foot-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: #7b94ad;
+    border-right: 1px solid #141c2b;
+  }
+  .hud-foot-cell:last-child { border-right: none; }
+  .hud-keycap {
+    background: #131c2b;
+    border: 1px solid #283a54;
+    color: #fff;
+    padding: 1px 4px;
+    font-weight: bold;
+    font-size: 10px;
+  }
+  .hud-keycap.act-yellow {
+    background: var(--cp-yellow);
+    border-color: var(--cp-yellow);
+    color: #000;
+  }
+  .hud-keycap.act-cyan {
+    background: var(--cp-cyan);
+    border-color: var(--cp-cyan);
+    color: #000;
+  }
+  .hud-keycap.act-red {
+    background: var(--cp-red);
+    border-color: var(--cp-red);
+    color: #fff;
+  }
+
+  /* 4. 战术 45° 瞄准括线 */
+  .hud-chiseled-frame {
+    position: absolute;
+    inset: 48px 6px 30px 6px;
+    pointer-events: none;
+  }
+  .hud-chiseled-frame span {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-color: #213045;
+    border-style: solid;
+  }
+  .hud-chiseled-frame .c-tl { top: 0; left: 0; border-width: 2px 0 0 2px; }
+  .hud-chiseled-frame .c-tr { top: 0; right: 0; border-width: 2px 2px 0 0; }
+  .hud-chiseled-frame .c-bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
+  .hud-chiseled-frame .c-br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+  .hud-chiseled-frame.active span { border-color: var(--cp-cyan); }
+  .hud-chiseled-frame.yellow span { border-color: var(--cp-yellow); }
+  .hud-chiseled-frame.red span { border-color: var(--cp-red); }
+
+  /* ============================================================
+     场景 1：主页面全流程状态
+     ============================================================ */
+
+  /* [1-A: 主页待命 - 八边形战术罗盘与神经核心] */
+  .cp-idle-core {
+    position: absolute;
+    top: 54px; left: 0; right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  /* 45度斜角八边形仪表盘 (LVGL可用斜线/边框模拟) */
+  .chiseled-octagon {
+    width: 104px;
+    height: 104px;
+    background: #0b0f19;
+    border: 1px solid var(--cp-cyan);
+    clip-path: polygon(25% 0%, 75% 0%, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0% 75%, 0% 25%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .chiseled-octagon .oct-title {
+    font-size: 22px;
+    font-family: var(--font-tech);
+    color: #fff;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+  .chiseled-octagon .oct-sub {
+    font-size: 10px;
+    color: var(--cp-yellow);
+    font-family: var(--font-tech);
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+  .chiseled-octagon::before {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    border: 1px solid rgba(0, 240, 255, 0.2);
+    clip-path: polygon(25% 0%, 75% 0%, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0% 75%, 0% 25%);
+  }
+  /* 待命交互引导槽 */
+  .idle-prompt-card {
+    margin-top: 18px;
+    width: 216px;
+    background: var(--cp-card);
+    border: 1px solid #1a2538;
+    border-left: 3px solid var(--cp-yellow);
+    border-radius: 2px;
+    padding: 8px 10px;
+  }
+  .idle-prompt-card .p-tag {
+    font-size: 10px;
+    color: var(--cp-yellow);
+    font-family: var(--font-tech);
+    letter-spacing: 1px;
+  }
+  .idle-prompt-card .p-main {
+    font-size: 13px;
+    color: #fff;
+    font-weight: 700;
+    margin: 3px 0 1px;
+  }
+  .idle-prompt-card .p-desc {
+    font-size: 10px;
+    color: #728ca6;
+  }
+  /* 底部硬件遥测标尺 */
+  .telemetry-ticker {
+    position: absolute;
+    bottom: 34px; left: 12px; right: 12px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-family: var(--font-tech);
+    color: #3f556e;
+    border-top: 1px solid #141e2e;
+    padding-top: 3px;
+  }
+
+  /* [1-B: Wi-Fi 连接中 - 战术频段雷达与握手] */
+  .wifi-conn-view {
+    position: absolute;
+    top: 54px; left: 12px; right: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .radar-sweep-box {
+    width: 90px;
+    height: 90px;
+    border: 1px solid var(--cp-yellow);
+    clip-path: polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background: rgba(252, 238, 10, 0.03);
+  }
+  .radar-sweep-box .radar-center {
+    width: 6px;
+    height: 6px;
+    background: var(--cp-yellow);
+  }
+  .radar-sweep-box .radar-ring {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    border: 1px solid rgba(252, 238, 10, 0.4);
+    border-radius: 50%;
+  }
+  .conn-handshake-card {
+    margin-top: 14px;
+    width: 100%;
+    background: var(--cp-card);
+    border: 1px solid #1f2d42;
+    border-left: 3px solid var(--cp-yellow);
+    border-radius: 2px;
+    padding: 8px 10px;
+    font-family: var(--font-tech);
+  }
+  .conn-handshake-card .row-label { font-size: 10px; color: #627d99; }
+  .conn-handshake-card .row-ssid { font-size: 14px; color: #fff; font-weight: bold; margin: 1px 0; }
+  .conn-handshake-card .row-diag { font-size: 10px; color: var(--cp-yellow); display: flex; align-items: center; gap: 4px; }
+
+  /* [1-C: 状态登录 / 小智对码 - 神经认证终端] */
+  .auth-pairing-view {
+    position: absolute;
+    top: 52px; left: 12px; right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .pairing-hex-panel {
+    background: #0a0f19;
+    border: 1px solid var(--cp-cyan);
+    border-radius: 2px;
+    padding: 10px;
+    text-align: center;
+    position: relative;
+  }
+  .pairing-hex-panel .auth-title {
+    font-size: 10px;
+    color: var(--cp-cyan);
+    font-family: var(--font-tech);
+    letter-spacing: 2px;
+  }
+  .pairing-hex-panel .auth-pin {
+    font-size: 26px;
+    font-family: var(--font-tech);
+    font-weight: 900;
+    color: var(--cp-yellow);
+    letter-spacing: 4px;
+    margin: 6px 0;
+    background: #111726;
+    padding: 4px 0;
+    border: 1px solid #263852;
+  }
+  .pairing-hex-panel .auth-tip {
+    font-size: 10px;
+    color: #8da4bc;
+  }
+  .auth-log-stream {
+    background: #080b12;
+    border: 1px solid #141e2e;
+    border-radius: 2px;
+    padding: 6px 8px;
+    font-family: var(--font-tech);
+    font-size: 10px;
+    color: #5d7894;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .auth-log-stream .log-active { color: var(--cp-cyan); font-weight: bold; }
+
+  /* [1-D: 语音录音与 ASR - 霓虹音频柱] */
+  .vocal-pulse-view {
+    position: absolute;
+    top: 50px; left: 10px; right: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .spectrum-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 52px;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .spectrum-bar {
+    width: 4px;
+    background: var(--cp-red);
+    border-radius: 1px;
+  }
+  .vocal-query-card {
+    margin-top: 14px;
+    width: 100%;
+    background: var(--cp-card);
+    border: 1px solid #233147;
+    border-left: 3px solid var(--cp-red);
+    border-radius: 2px;
+    padding: 8px 10px;
+  }
+  .vocal-query-card .vq-head {
+    font-size: 10px;
+    color: var(--cp-red);
+    font-family: var(--font-tech);
+    letter-spacing: 1.5px;
+  }
+  .vocal-query-card .vq-text {
+    font-size: 15px;
+    color: #fff;
+    font-weight: 700;
+    margin: 3px 0;
+  }
+  .vocal-query-card .vq-status {
+    font-size: 10px;
+    color: #6a839e;
+    font-family: var(--font-tech);
+  }
+
+  /* ============================================================
+     场景 2：全屏展示 (320x240 横屏，16:9 视频 320x180 居中直写)
+     ============================================================ */
+  .fs-optics-stage {
+    position: absolute;
+    inset: 0;
+    background: #000000;
+    overflow: hidden;
+  }
+  /* 顶部 30px 遮幅：查询文本由固件在流式开始前一次性直写（非 LVGL 叠加，不逐帧重绘） */
+  .fs-letterbox-top {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 30px;
+    background: #000000;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 10px;
+    font-family: var(--font-tech);
+    font-size: 10px;
+  }
+  .fs-top-query {
+    color: #8da4be;
+    max-width: 210px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .fs-top-index { color: var(--cp-yellow); }
+
+  /* 320x180 核心 16:9 视频原画窗口 (Y=30..210) */
+  .fs-video-viewport {
+    position: absolute;
+    top: 30px; left: 0;
+    width: 320px;
+    height: 180px;
+    background: #000000;
+    overflow: hidden;
+  }
+
+  /* 模拟 16:9 原片视频流内容 */
+  .fs-sim-scene {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 60% 40%, #1a273d 0%, #0d1321 60%, #05070d 100%);
+  }
+  .fs-sim-scene .sim-bldg {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 110px;
+    background: linear-gradient(0deg, #04060a 0%, #0b111e 100%);
+    clip-path: polygon(0 50px, 60px 30px, 60px 15px, 120px 15px, 120px 40px, 180px 10px, 240px 10px, 250px 50px, 320px 30px, 320px 110px, 0 110px);
+  }
+  .fs-sim-scene .sim-neon {
+    position: absolute;
+    bottom: 45px; left: 130px;
+    padding: 1px 6px;
+    background: rgba(255, 0, 60, 0.2);
+    border: 1px solid var(--cp-red);
+    color: var(--cp-red);
+    font-size: 10px;
+    font-weight: bold;
+  }
+  /* 底部 30px 纯黑遮幅 (Pure Black Letterbox Bottom Bar) */
+  .fs-letterbox-bottom {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 30px;
+    background: #000000;
+    z-index: 10;
+  }
+
+  /* ============================================================
+     场景 3：系统设置控制台 (System Kernel Console)
+     ============================================================ */
+  .kernel-menu-view {
+    position: absolute;
+    top: 50px; left: 8px; right: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .kernel-sec-title {
+    font-family: var(--font-tech);
+    font-size: 10px;
+    color: var(--cp-cyan);
+    letter-spacing: 1px;
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 2px;
+    border-bottom: 1px solid #162438;
+  }
+  .kernel-row {
+    height: 32px;
+    background: var(--cp-card);
+    border: 1px solid #192538;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    font-family: var(--font-tech);
+    font-size: 10.5px;
+  }
+  .kernel-row.selected {
+    background: #1a2538;
+    border-color: var(--cp-yellow);
+    border-left: 3px solid var(--cp-yellow);
+    color: #fff;
+  }
+  .kernel-row .k-name {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #cad8e6;
+  }
+  .kernel-row.selected .k-name {
+    color: #fff;
+    font-weight: bold;
+  }
+  .kernel-row .k-cursor {
+    color: var(--cp-yellow);
+    font-weight: 900;
+    visibility: hidden;
+  }
+  .kernel-row.selected .k-cursor { visibility: visible; }
+  /* 数码级进音量推子 */
+  .fader-ladder {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+  .fader-ladder span {
+    width: 3px;
+    height: 9px;
+    background: #1c293d;
+  }
+  .fader-ladder span.fill { background: var(--cp-yellow); }
+
+  /* ============================================================
+     场景 4：未设置 Wi-Fi 时的配置引导流程
+     ============================================================ */
+
+  /* [4-A: 离线断网警报 - 斑马警示纹理] */
+  .offline-alert-view {
+    position: absolute;
+    top: 52px; left: 10px; right: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  /* 赛博黄黑斑马线条 */
+  .hazard-bar {
+    width: 100%;
+    height: 6px;
+    background: repeating-linear-gradient(
+      -45deg,
+      #000,
+      #000 6px,
+      var(--cp-yellow) 6px,
+      var(--cp-yellow) 12px
+    );
+    margin-bottom: 12px;
+  }
+  .alert-oct-box {
+    width: 64px;
+    height: 64px;
+    background: rgba(252, 238, 10, 0.08);
+    border: 2px solid var(--cp-yellow);
+    clip-path: polygon(25% 0, 75% 0, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0 75%, 0 25%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: var(--cp-yellow);
+    margin-bottom: 10px;
+    font-weight: 900;
+  }
+  .offline-alert-view h3 {
+    font-size: 14px;
+    color: #fff;
+    letter-spacing: 1px;
+  }
+  .offline-alert-view .err-code {
+    font-size: 10px;
+    color: var(--cp-yellow);
+    font-family: var(--font-tech);
+    letter-spacing: 1.5px;
+    margin-top: 2px;
+  }
+  .offline-alert-view .alert-desc {
+    font-size: 10px;
+    color: #7f97b0;
+    margin-top: 6px;
+    line-height: 1.4;
+    padding: 0 4px;
+  }
+  .scan-trigger-card {
+    margin-top: 14px;
+    width: 100%;
+    background: var(--cp-card);
+    border: 1px solid var(--cp-yellow);
+    padding: 6px;
+    font-family: var(--font-tech);
+    font-size: 10px;
+    color: var(--cp-yellow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  /* [4-B: Wi-Fi 雷达扫描列表] */
+  .ap-scanner-view {
+    position: absolute;
+    top: 50px; left: 8px; right: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .ap-item-row {
+    height: 32px;
+    background: var(--cp-card);
+    border: 1px solid #192538;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    font-family: var(--font-tech);
+    font-size: 10.5px;
+  }
+  .ap-item-row.selected {
+    background: #19263a;
+    border-color: var(--cp-yellow);
+    border-left: 3px solid var(--cp-yellow);
+    color: #fff;
+  }
+  .ap-item-row .ap-ssid {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 130px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ap-item-row .ap-ico {
+    flex: none;
+    color: #5c7591;
+  }
+  .ap-item-row.selected .ap-ico { color: var(--cp-yellow); }
+  .ap-item-row .ap-ico.open { color: var(--cp-green); }
+  .ap-item-row .ap-rssi {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #6a839e;
+  }
+  .ap-item-row.selected .ap-rssi { color: #fff; }
+
+  /* [4-C: 6列赛博机械矩阵键盘] */
+  .cyber-matrix-kbd-view {
+    position: absolute;
+    top: 48px; left: 6px; right: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .kbd-target-header {
+    font-family: var(--font-tech);
+    font-size: 10px;
+    color: var(--cp-yellow);
+    display: flex;
+    justify-content: space-between;
+    padding: 0 2px;
+  }
+  .kbd-input-slot {
+    height: 24px;
+    background: #070a12;
+    border: 1px solid var(--cp-cyan);
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    font-family: var(--font-tech);
+    font-size: 12px;
+    color: #fff;
+    letter-spacing: 2px;
+  }
+  .kbd-input-slot .cursor-blink {
+    width: 2px;
+    height: 12px;
+    background: var(--cp-cyan);
+    display: inline-block;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+  /* 6 列 30 键网格 (按键尺寸严格对应现有代码 31x20 间距 4) */
+  .grid-matrix-6x5 {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 3.5px;
+    padding: 2px 0;
+  }
+  .matrix-cell {
+    height: 22px;
+    background: #0f1522;
+    border: 1px solid #1c283d;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-tech);
+    font-size: 11px;
+    color: #a3b8cd;
+  }
+  .matrix-cell.selected {
+    background: var(--cp-yellow);
+    border-color: #fff;
+    color: #000;
+    font-weight: 900;
+  }
+  .matrix-cell.fn {
+    background: #0a0e17;
+    color: var(--cp-cyan);
+    font-size: 10px;
+    font-weight: bold;
+  }
+  .matrix-cell.fn.go {
+    color: var(--cp-green);
+  }
+  .matrix-cell.selected.fn {
+    background: var(--cp-cyan);
+    color: #000;
+  }
+  .matrix-cell.selected.fn.go {
+    background: var(--cp-green);
+    color: #000;
+  }
+
+  /* ============================================================
+     赛博掌机实时交互舱 (Live Cyber-Deck Simulator)
+     ============================================================ */
+  .cyber-deck-cockpit {
+    margin-top: 48px;
+    background: #080c14;
+    border: 1px solid #1d2b3e;
+    padding: 28px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 36px;
+    align-items: flex-start;
+    border-left: 4px solid var(--cp-cyan);
+  }
+  .cockpit-panel {
+    flex: 1;
+    min-width: 320px;
+  }
+  .cockpit-panel h3 {
+    color: var(--cp-cyan);
+    font-size: 18px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cockpit-panel p {
+    font-size: 12px;
+    color: #7b94ad;
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+  .scene-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .scene-btn {
+    background: #101624;
+    border: 1px solid #1e2d42;
+    clip-path: polygon(0 0, 92% 0, 100% 25%, 100% 100%, 0 100%);
+    color: #b1c7dc;
+    padding: 8px 10px;
+    font-size: 11px;
+    font-family: var(--font-tech);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+  }
+  .scene-btn:hover {
+    border-color: var(--cp-cyan);
+    color: #fff;
+  }
+  .scene-btn.active {
+    background: rgba(0, 240, 255, 0.15);
+    border-color: var(--cp-cyan);
+    color: var(--cp-cyan);
+    font-weight: bold;
+    box-shadow: inset 2px 0 0 var(--cp-cyan);
+  }
+  /* 掌机机身模拟外壳 */
+  .handheld-chassis {
+    background: #111724;
+    border: 2px solid #283952;
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.1);
+    position: relative;
+  }
+  .chassis-screws {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #2a394d;
+    border: 1px solid #182333;
+  }
+  .screw-tl { top: 8px; left: 8px; }
+  .screw-tr { top: 8px; right: 8px; }
+  .screw-bl { bottom: 8px; left: 8px; }
+  .screw-br { bottom: 8px; right: 8px; }
+  /* 硬件三键 */
+  .hw-keys-pod {
+    margin-top: 14px;
+    background: #090e17;
+    border: 1px solid #1a2638;
+    padding: 12px;
+  }
+  .hw-keys-pod h4 {
+    font-size: 11px;
+    color: #657e99;
+    margin-bottom: 8px;
+    font-family: var(--font-tech);
+  }
+  .hw-btn-grid {
+    display: flex;
+    gap: 10px;
+  }
+  .hw-key-btn {
+    flex: 1;
+    background: #162030;
+    border: 1px solid #2b3e59;
+    color: #fff;
+    padding: 10px 0;
+    text-align: center;
+    font-family: var(--font-tech);
+    font-size: 11px;
+    cursor: pointer;
+    clip-path: polygon(0 0, 88% 0, 100% 25%, 100% 100%, 0 100%);
+  }
+  .hw-key-btn:active {
+    background: var(--cp-yellow);
+    color: #000;
+  }
+  .hw-key-btn.ok-btn {
+    border-color: var(--cp-yellow);
+    color: var(--cp-yellow);
+  }
+</style>
+</head>
+<body>
+
+<div class="cp-banner">
+  <h1>AI PASSPORT // 赛博朋克重构界面规范 <span class="tag">ESP32-C3 240×320</span></h1>
+  <p>自底向上推翻以往传统旧稿，采用纯正 <strong>Cyberpunk 2077 / 军规战术终端 (Netrunner)</strong> 视觉风格。通过 45° 倒角切角、赛博黄与电光青高亮撞色、战术标尺及十六进制数据排版，严苛适配 ESP32-C3（无 PSRAM、单次直写图片）的高性能轻量 LVGL 渲染约束。</p>
+
+  <div class="palette-strip">
+    <div class="swatch"><i style="background:#090B10"></i>#090B10 冷沥青黑 (Base)</div>
+    <div class="swatch"><i style="background:#FCEE0A"></i>#FCEE0A 赛博黄 (Cyber Yellow)</div>
+    <div class="swatch"><i style="background:#00F0FF"></i>#00F0FF 电光青 (Electric Cyan)</div>
+    <div class="swatch"><i style="background:#FF003C"></i>#FF003C 霓虹赤红 (Neon Red)</div>
+    <div class="swatch"><i style="background:#00FF66"></i>#00FF66 矩阵绿 (Matrix Green)</div>
+    <div class="swatch"><i style="background:#121622"></i>#121622 战术暗卡片 (Card)</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     场景 1：主页面全流程状态
+     ============================================================ -->
+<div class="section-head">
+  <h2>1. 主页面流程链路 (Main Screen Lifecycle)</h2>
+  <div class="line"></div>
+</div>
+
+<div class="gallery-grid">
+
+  <!-- 1-A: 主页待命 -->
+  <div class="screen-unit">
+    <div class="frame-viewport"><div class="lcd-canvas">
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag">AI</span><span class="hud-brand-text">语义搜索</span></div>
+        <div class="hud-sysinfo">
+          <span class="tactical-sig"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></span>
+          <span class="tactical-batt"><i></i><i></i><i></i></span>
+          <span class="hud-time">21:07</span>
+        </div>
+      </div>
+      <div class="hud-subbar">
+        <span>DEVICE READY</span>
+        <span class="hud-mode">SYS_STANDBY</span>
+      </div>
+      <div class="hud-chiseled-frame active"><span class="c-tl"></span><span class="c-tr"></span><span class="c-bl"></span><span class="c-br"></span></div>
+      <!-- 八边形战术罗盘与说明 -->
+      <div class="cp-idle-core">
+        <div class="chiseled-octagon">
+          <div class="oct-title">READY</div>
+          <div class="oct-sub">VOICE SEARCH</div>
+        </div>
+        <div class="idle-prompt-card">
+          <div class="p-tag">INTERACTION PROMPT</div>
+          <div class="p-main">按下 OK 开始录音</div>
+          <div class="p-desc">说出你要查找的视频场景或画面内容</div>
+        </div>
+      </div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 开启录音</div>
+        <div class="hud-foot-cell"><span class="hud-keycap">OK</span> 长按设置</div>
+      </div>
+    </div></div>
+    <div class="caption"><b>1-A 主页待命</b> <em>(45°切角八边形罗盘 + 神经提示卡)</em></div>
+  </div>
+
+  <!-- 1-B: Wi-Fi 连接中 -->
+  <div class="screen-unit">
+    <div class="frame-viewport"><div class="lcd-canvas">
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag" style="background:var(--cp-yellow)">NET</span><span class="hud-brand-text">网络链路</span></div>
+        <div class="hud-sysinfo">
+          <span class="tactical-sig yellow"><span class="on"></span><span class="on"></span><span></span><span></span></span>
+          <span class="tactical-batt"><i></i><i></i><i></i></span>
+          <span class="hud-time">21:07</span>
+        </div>
+      </div>
+      <div class="hud-subbar">
+        <span>WIFI LINK</span>
+        <span class="hud-mode yellow">CONNECTING...</span>
+      </div>
+      <div class="hud-chiseled-frame yellow"><span class="c-tl"></span><span class="c-tr"></span><span class="c-bl"></span><span class="c-br"></span></div>
+      <div class="wifi-conn-view">
+        <div class="radar-sweep-box">
+          <div class="radar-center"></div>
+          <div class="radar-ring"></div>
+        </div>
+        <div class="conn-handshake-card">
+          <div class="row-label">TARGET ACCESS POINT:</div>
+          <div class="row-ssid">Cyber_Lab_5G</div>
+          <div class="row-diag">WPA2 HANDSHAKE [DHCP]</div>
+        </div>
+      </div>
+      <div class="telemetry-ticker">
+        <span>SSID: Cyber_Lab_5G</span>
+        <span>RSSI: -58dBm</span>
+        <span>IP: ACQUIRING</span>
+      </div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap">OK</span> 中止取消</div>
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 长按重选</div>
+      </div>
+    </div></div>
+    <div class="caption"><b>1-B Wi-Fi 连接中</b> <em>(战术切角频段雷达 + 握手诊断)</em></div>
+  </div>
+
+  <!-- 1-C: 状态登录 / 小智对码 -->
+  <div class="screen-unit">
+    <div class="frame-viewport"><div class="lcd-canvas">
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag">AUTH</span><span class="hud-brand-text">小智对码</span></div>
+        <div class="hud-sysinfo">
+          <span class="tactical-sig"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></span>
+          <span class="tactical-batt"><i></i><i></i><i></i></span>
+          <span class="hud-time">21:08</span>
+        </div>
+      </div>
+      <div class="hud-subbar">
+        <span>PAIRING</span>
+        <span class="hud-mode">WAIT_BINDING</span>
+      </div>
+      <div class="hud-chiseled-frame"><span class="c-tl"></span><span class="c-tr"></span><span class="c-bl"></span><span class="c-br"></span></div>
+      <div class="auth-pairing-view">
+        <div class="pairing-hex-panel">
+          <div class="auth-title">DEVICE PAIRING PIN</div>
+          <div class="auth-pin">849204</div>
+          <div class="auth-tip">请在控制台或小程序输入 PIN 完成激活</div>
+        </div>
+        <div class="auth-log-stream">
+          <div class="log-active">&gt;&gt; WAITING FOR CLOUD ACTIVATION...</div>
+        </div>
+      </div>
+      <div class="telemetry-ticker">
+        <span>MAC: 34:85:18:A2:7F</span>
+        <span>TOKEN: PENDING</span>
+        <span>ACT: READY</span>
+      </div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap act-cyan">OK</span> 刷新状态</div>
+        <div class="hud-foot-cell"><span class="hud-keycap">OK</span> 长按返回</div>
+      </div>
+    </div></div>
+    <div class="caption"><b>1-C 状态登录与对码</b> <em>(高发光 6位PIN + 神经链路握手日志)</em></div>
+  </div>
+
+  <!-- 1-D: 语音录音与 ASR -->
+  <div class="screen-unit">
+    <div class="frame-viewport"><div class="lcd-canvas">
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag" style="background:var(--cp-red);color:#fff">REC</span><span class="hud-brand-text">语音识别</span></div>
+        <div class="hud-sysinfo">
+          <span class="tactical-sig"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></span>
+          <span class="tactical-batt"><i></i><i></i><i></i></span>
+          <span class="hud-time">21:08</span>
+        </div>
+      </div>
+      <div class="hud-subbar">
+        <span>VOICE INPUT</span>
+        <span class="hud-mode red">● SAMPLING...</span>
+      </div>
+      <div class="hud-chiseled-frame red"><span class="c-tl"></span><span class="c-tr"></span><span class="c-bl"></span><span class="c-br"></span></div>
+      <div class="vocal-pulse-view">
+        <!-- 动态暴烈跳动光柱 -->
+        <div class="spectrum-container">
+          <span class="spectrum-bar" style="height:12px"></span>
+          <span class="spectrum-bar" style="height:26px"></span>
+          <span class="spectrum-bar" style="height:46px"></span>
+          <span class="spectrum-bar" style="height:32px"></span>
+          <span class="spectrum-bar" style="height:50px"></span>
+          <span class="spectrum-bar" style="height:38px"></span>
+          <span class="spectrum-bar" style="height:22px"></span>
+          <span class="spectrum-bar" style="height:42px"></span>
+          <span class="spectrum-bar" style="height:16px"></span>
+        </div>
+        <div class="vocal-query-card">
+          <div class="vq-head">VOICE CAPTURE ACTIVE</div>
+          <div class="vq-text">正在录音中...</div>
+          <div class="vq-status">按 OK 键结束录音并发送检索</div>
+        </div>
+      </div>
+      <div class="telemetry-ticker">
+        <span>CODEC: OPUS</span>
+        <span>SAMPLE: 16kHz</span>
+        <span>MIC: ES8311</span>
+      </div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap act-red">OK</span> 结束录音</div>
+        <div class="hud-foot-cell"><span class="hud-keycap">▲▼</span> 取消</div>
+      </div>
+    </div></div>
+    <div class="caption"><b>1-D 语音识别中</b> <em>(音频电平柱 + 录音状态提示，搜索时呈现识别文本)</em></div>
+  </div>
+
+<!-- ============================================================
+     场景 2：全屏展示 (320x240 横屏，16:9 视频 320×180 居中直写)
+     ============================================================ -->
+<div class="section-head cyan">
+  <h2>2. 全屏展示 (320×240 横屏，16:9 视频 320×180 居中直写)</h2>
+  <div class="line"></div>
+</div>
+
+<div class="gallery-grid">
+  <div class="screen-unit">
+    <div class="frame-viewport landscape"><div class="lcd-canvas landscape-mode">
+      <div class="scanline-overlay"></div>
+      <div class="fs-optics-stage">
+        <!-- 顶部 30px 遮幅：查询文本流式前一次性直写 -->
+        <div class="fs-letterbox-top">
+          <span class="fs-top-query">“街头的深夜食堂”</span>
+          <span class="fs-top-index">01/12</span>
+        </div>
+
+        <!-- 320x180 核心 16:9 视频原画视口 (Y=30..210) -->
+        <div class="fs-video-viewport">
+          <div class="fs-sim-scene">
+            <div class="sim-bldg"></div>
+            <div class="sim-neon">深夜食堂</div>
+          </div>
+        </div>
+
+        <!-- 底部 30px 纯黑遮幅 (Letterbox Bottom) -->
+        <div class="fs-letterbox-bottom"></div>
+      </div>
+    </div></div>
+    <div class="caption"><b>全屏 320×180 居中原画呈现</b> <em>(ST7789 硬件直写，查询文本流式前直写顶部遮幅，一次绘制零逐帧开销)</em></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     场景 3：系统设置控制台
+     ============================================================ -->
+<div class="section-head">
+  <h2>3. 系统设置终端 (System Kernel Console)</h2>
+  <div class="line"></div>
+</div>
+
+<div class="gallery-grid">
+
+  <!-- 3-A: 设置主菜单 -->
+  <div class="screen-unit">
+    <div class="frame-viewport"><div class="lcd-canvas">
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag">CFG</span><span class="hud-brand-text">控制台</span></div>
+        <div class="hud-sysinfo">
+          <span class="tactical-sig"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></span>
+          <span class="tactical-batt"><i></i><i></i><i></i></span>
+          <span class="hud-time">21:10</span>
+        </div>
+      </div>
+      <div class="hud-subbar">
+        <span>SETTINGS</span>
+        <span class="hud-mode">4 NODES</span>
+      </div>
+      <div class="kernel-menu-view">
+        <div class="kernel-sec-title">
+          <span>PARAM CONTROL</span>
+          <span style="color:#526d8a">NVS: ACTIVE</span>
+        </div>
+        <!-- 选项 1: 音量调节 (选中焦点) -->
+        <div class="kernel-row selected">
+          <span class="k-name"><span class="k-cursor">&gt;&gt;</span>音量控制</span>
+          <div class="fader-ladder">
+            <span class="fill"></span><span class="fill"></span><span class="fill"></span><span class="fill"></span><span class="fill"></span>
+            <span class="fill"></span><span class="fill"></span><span></span><span></span><span></span>
+            <b style="font-size:10px;margin-left:4px;color:var(--cp-yellow)">70%</b>
+          </div>
+        </div>
+        <!-- 选项 2: Wi-Fi 配置 -->
+        <div class="kernel-row">
+          <span class="k-name"><span class="k-cursor">&gt;&gt;</span>网络配置 (Wi-Fi)</span>
+          <span style="font-size:10px;color:#738ea8">Cyber_5G</span>
+        </div>
+        <!-- 选项 3: 服务端配置 -->
+        <div class="kernel-row">
+          <span class="k-name"><span class="k-cursor">&gt;&gt;</span>搜索服务地址</span>
+          <span style="font-size:10px;color:#738ea8">:8000</span>
+        </div>
+        <!-- 选项 4: 返回 -->
+        <div class="kernel-row">
+          <span class="k-name"><span class="k-cursor">&gt;&gt;</span>返回主页面</span>
+          <span style="font-size:10px;color:#738ea8">ESC</span>
+        </div>
+      </div>
+      <div class="telemetry-ticker">
+        <span>FLASH: 4MB</span>
+        <span>IDF: v5.5.5</span>
+        <span>NVS: ACTIVE</span>
+      </div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap">▲▼</span> 调节/切换</div>
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 确认/返回</div>
+      </div>
+    </div></div>
+    <div class="caption"><b>3-A 设置主菜单</b> <em>(直角轻卡片 + 战术反色焦点 + 4项标准配置)</em></div>
+  </div>
+
+  <!-- 3-B: 搜索服务地址配置 -->
+  <div class="screen-unit">
+    <div class="frame-viewport"><div class="lcd-canvas">
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag">SVR</span><span class="hud-brand-text">服务地址</span></div>
+        <div class="hud-sysinfo"><span class="hud-time">21:11</span></div>
+      </div>
+      <div class="hud-subbar">
+        <span>SERVICE URL</span>
+        <span class="hud-mode">PORT 8000</span>
+      </div>
+      <div class="kernel-menu-view" style="gap:8px">
+        <div class="kernel-sec-title">
+          <span>REMOTE REST URL</span>
+          <span style="color:#526d8a">STATUS: 200 OK</span>
+        </div>
+        <div style="background:#070a12;border:1px solid var(--cp-yellow);padding:8px;font-family:var(--font-tech);font-size:10.5px;color:#fff">
+          http://video-search.local:8000<span class="cursor-blink"></span>
+        </div>
+        <div style="background:var(--cp-card);border:1px solid #1a273b;padding:6px 8px;font-family:var(--font-tech);font-size:10px;color:#7690aa;line-height:1.6">
+          <div>TARGET: /search</div>
+          <div>METHOD: HTTP POST / JSON</div>
+          <div>STORAGE: NVS (display/url)</div>
+        </div>
+      </div>
+      <div class="telemetry-ticker">
+        <span>NVS: search/server_url</span>
+        <span>SAVE: OK</span>
+      </div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 键盘编辑</div>
+        <div class="hud-foot-cell"><span class="hud-keycap">OK</span> 长按保存</div>
+      </div>
+    </div></div>
+    <div class="caption"><b>3-B 服务地址终端</b> <em>(REST Endpoint 与 NVS 存储配置)</em></div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     场景 4：未设置 Wi-Fi 时的配置引导流程
+     ============================================================ -->
+<div class="section-head red">
+  <h2>4. 未设置 Wi-Fi 时的配置引导 (No Wi-Fi Setup Flow)</h2>
+  <div class="line"></div>
+</div>
+
+<div class="gallery-grid">
+
+  <!-- 4-A: 离线警报引导 -->
+  <div class="screen-unit">
+    <div class="frame-viewport"><div class="lcd-canvas">
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag" style="background:var(--cp-red);color:#fff">ERR</span><span class="hud-brand-text">离线警报</span></div>
+        <div class="hud-sysinfo">
+          <span class="tactical-sig red"><span></span><span></span><span></span><span></span></span>
+          <span class="tactical-batt"><i></i><i></i><i></i></span>
+          <span class="hud-time">00:00</span>
+        </div>
+      </div>
+      <div class="hud-subbar">
+        <span>NETWORK OFFLINE</span>
+        <span class="hud-mode red">NO AP CONFIGURED</span>
+      </div>
+      <div class="hud-chiseled-frame red"><span class="c-tl"></span><span class="c-tr"></span><span class="c-bl"></span><span class="c-br"></span></div>
+      <div class="offline-alert-view">
+        <div class="hazard-bar"></div>
+        <div class="alert-oct-box">!</div>
+        <h3>未检测到网络链路</h3>
+        <div class="err-code">ERR_NO_WIFI_CREDENTIALS</div>
+        <div class="alert-desc">首次启动或未配置网络，请配置 Wi-Fi 接入视频搜索引擎与小智服务</div>
+        <div class="scan-trigger-card">
+          <span class="tactical-sig yellow"><span class="on"></span><span class="on"></span><span></span><span></span></span>
+          <span>按 OK 开始扫描周围 Wi-Fi</span>
+        </div>
+      </div>
+      <div class="telemetry-ticker">
+        <span>SSID: NULL</span>
+        <span>IP: 0.0.0.0</span>
+        <span>RADAR: READY</span>
+      </div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 立即扫网</div>
+        <div class="hud-foot-cell"><span class="hud-keycap">OK</span> 长按重试</div>
+      </div>
+    </div></div>
+    <div class="caption"><b>4-A 离线断网警报</b> <em>(战术黄黑斑马线条 + 自动扫网引导)</em></div>
+  </div>
+
+  <!-- 4-B: Wi-Fi 列表扫描 -->
+  <div class="screen-unit">
+    <div class="frame-viewport"><div class="lcd-canvas">
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag">SCAN</span><span class="hud-brand-text">Wi-Fi 列表</span></div>
+        <div class="hud-sysinfo"><span class="hud-time">00:01</span></div>
+      </div>
+      <div class="hud-subbar">
+        <span>WIFI LIST</span>
+        <span class="hud-mode">5 APs FOUND</span>
+      </div>
+      <div class="ap-scanner-view">
+        <!-- 项 1: 选中高亮焦点 -->
+        <div class="ap-item-row selected">
+          <div class="ap-ssid"><svg class="ap-ico" viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z"/></svg>Cyber_Lab_5G</div>
+          <div class="ap-rssi">
+            <span>-52dBm</span>
+            <span class="tactical-sig yellow"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></span>
+          </div>
+        </div>
+        <!-- 项 2 -->
+        <div class="ap-item-row">
+          <div class="ap-ssid"><svg class="ap-ico" viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z"/></svg>Office_IoT_2.4G</div>
+          <div class="ap-rssi">
+            <span>-63dBm</span>
+            <span class="tactical-sig"><span class="on"></span><span class="on"></span><span class="on"></span><span></span></span>
+          </div>
+        </div>
+        <!-- 项 3 (OPEN 开放) -->
+        <div class="ap-item-row">
+          <div class="ap-ssid"><svg class="ap-ico open" viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5h2a3 3 0 0 1 6 0v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5z"/></svg>Free_Coffee_Net</div>
+          <div class="ap-rssi">
+            <span>-70dBm</span>
+            <span class="tactical-sig"><span class="on"></span><span class="on"></span><span></span><span></span></span>
+          </div>
+        </div>
+        <!-- 项 4 -->
+        <div class="ap-item-row">
+          <div class="ap-ssid"><svg class="ap-ico" viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z"/></svg>SmartHome_7B</div>
+          <div class="ap-rssi">
+            <span>-82dBm</span>
+            <span class="tactical-sig"><span class="on"></span><span></span><span></span><span></span></span>
+          </div>
+        </div>
+      </div>
+      <div class="telemetry-ticker">
+        <span>SORT: RSSI_DESC</span>
+        <span>MODE: STATION</span>
+      </div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap">▲▼</span> 选择 AP</div>
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 输入密码</div>
+      </div>
+    </div></div>
+    <div class="caption"><b>4-B Wi-Fi 扫描列表</b> <em>(加密锁状态 + 战术信号格 + dBm刻度)</em></div>
+  </div>
+
+  <!-- 4-C: 6列赛博机械矩阵键盘 -->
+  <div class="screen-unit">
+    <div class="frame-viewport"><div class="lcd-canvas">
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag">KEY</span><span class="hud-brand-text">密码输入</span></div>
+        <div class="hud-sysinfo"><span class="hud-time">00:02</span></div>
+      </div>
+      <div class="hud-subbar">
+        <span>SSID: Cyber_Lab_5G</span>
+        <span class="hud-mode">LEN: 8</span>
+      </div>
+      <div class="cyber-matrix-kbd-view">
+        <div class="kbd-target-header">
+          <span>PASSWORD TERMINAL</span>
+          <span style="color:var(--cp-cyan)">CHAR: [ i ]</span>
+        </div>
+        <div class="kbd-input-slot">
+          ••••••••<span class="cursor-blink"></span>
+        </div>
+        <!-- 6列 30 键机械矩阵 -->
+        <div class="grid-matrix-6x5">
+          <div class="matrix-cell">a</div><div class="matrix-cell">b</div><div class="matrix-cell">c</div><div class="matrix-cell">d</div><div class="matrix-cell">e</div><div class="matrix-cell">f</div>
+          <div class="matrix-cell">g</div><div class="matrix-cell">h</div><div class="matrix-cell selected">i</div><div class="matrix-cell">j</div><div class="matrix-cell">k</div><div class="matrix-cell">l</div>
+          <div class="matrix-cell">m</div><div class="matrix-cell">n</div><div class="matrix-cell">o</div><div class="matrix-cell">p</div><div class="matrix-cell">q</div><div class="matrix-cell">r</div>
+          <div class="matrix-cell">s</div><div class="matrix-cell">t</div><div class="matrix-cell">u</div><div class="matrix-cell">v</div><div class="matrix-cell">w</div><div class="matrix-cell">x</div>
+          <div class="matrix-cell">y</div><div class="matrix-cell">z</div><div class="matrix-cell fn">ABC</div><div class="matrix-cell fn">123</div><div class="matrix-cell fn">&lt;</div><div class="matrix-cell fn go">GO</div>
+        </div>
+      </div>
+      <div class="telemetry-ticker">
+        <span>HOLD ▲▼: JUMP 6 KEYS</span>
+        <span>OK: INPUT</span>
+      </div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap">▲▼</span> 移动光标</div>
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 键入 / 长按返回</div>
+      </div>
+    </div></div>
+    <div class="caption"><b>4-C 6列机械矩阵键盘</b> <em>(6列 30键 完美契合 GPIO0 三键 ADC 长短按导航)</em></div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     赛博掌机实时交互舱 (Live Cyber-Deck Simulator)
+     ============================================================ -->
+<div class="cyber-deck-cockpit">
+  <div class="cockpit-panel">
+    <h3>⚡ 赛博掌机仿真操作台 (Interactive Cyber-Deck)</h3>
+    <p>
+      在此真机掌机仿真外壳中实时体验各界面的交互流转。支持使用下方硬件三键（▲、▼、OK）或直接点击屏幕进行测试体验。
+    </p>
+
+    <div class="scene-selector-grid">
+      <button class="scene-btn active" onclick="deckSwitch('idle')">1. 主页待命 (STANDBY)</button>
+      <button class="scene-btn" onclick="deckSwitch('connecting')">2. Wi-Fi 握手连接</button>
+      <button class="scene-btn" onclick="deckSwitch('auth')">3. 小智神经认证对码</button>
+      <button class="scene-btn" onclick="deckSwitch('listening')">4. 语音收音频谱 (ASR)</button>
+      <button class="scene-btn" onclick="deckSwitch('fullscreen')">5. 全屏 320×180 视频原画</button>
+      <button class="scene-btn" onclick="deckSwitch('settings')">6. 系统设置终端控制台</button>
+      <button class="scene-btn" onclick="deckSwitch('offline')">7. 离线断网警报 (No Wi-Fi)</button>
+      <button class="scene-btn" onclick="deckSwitch('aplist')">8. Wi-Fi 雷达列表</button>
+      <button class="scene-btn" onclick="deckSwitch('keyboard')">9. 6列机械矩阵键盘</button>
+    </div>
+
+    <div class="hw-keys-pod">
+      <h4>GPIO0 ADC 物理按键通道 (按键测试)</h4>
+      <div class="hw-btn-grid">
+        <button class="hw-key-btn" onclick="deckKey('UP')">▲ 上键 (UP)</button>
+        <button class="hw-key-btn" onclick="deckKey('DOWN')">▼ 下键 (DOWN)</button>
+        <button class="hw-key-btn ok-btn" onclick="deckKey('OK')">● OK 键 (ACT)</button>
+      </div>
+      <div id="deck-log" style="font-size:10px;font-family:var(--font-tech);color:var(--cp-cyan);margin-top:8px;">
+        STATUS: 模拟舱已就绪，点击按键或右侧视图交互...
+      </div>
+    </div>
+  </div>
+
+  <!-- 掌机机身模拟外壳 -->
+  <div class="handheld-chassis">
+    <div class="chassis-screws screw-tl"></div>
+    <div class="chassis-screws screw-tr"></div>
+    <div class="chassis-screws screw-bl"></div>
+    <div class="chassis-screws screw-br"></div>
+
+    <div class="frame-viewport" id="deck-vp">
+      <div class="lcd-canvas" id="deck-lcd">
+        <!-- 动态注入选定视图 -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 模板库
+  const deckScreens = {
+    idle: `
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag">AI</span><span class="hud-brand-text">语义搜索</span></div>
+        <div class="hud-sysinfo">
+          <span class="tactical-sig"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></span>
+          <span class="tactical-batt"><i></i><i></i><i></i></span>
+          <span class="hud-time">21:07</span>
+        </div>
+      </div>
+      <div class="hud-subbar"><span>DEVICE READY</span><span class="hud-mode">SYS_STANDBY</span></div>
+      <div class="hud-chiseled-frame active"><span class="c-tl"></span><span class="c-tr"></span><span class="c-bl"></span><span class="c-br"></span></div>
+      <div class="cp-idle-core">
+        <div class="chiseled-octagon"><div class="oct-title">READY</div><div class="oct-sub">VOICE SEARCH</div></div>
+        <div class="idle-prompt-card">
+          <div class="p-tag">INTERACTION PROMPT</div>
+          <div class="p-main">按下 OK 开始录音</div>
+          <div class="p-desc">说出你要查找的视频场景或画面内容</div>
+        </div>
+      </div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 开启录音</div>
+        <div class="hud-foot-cell"><span class="hud-keycap">OK</span> 长按设置</div>
+      </div>
+    `,
+    connecting: `
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag" style="background:var(--cp-yellow)">NET</span><span class="hud-brand-text">网络链路</span></div>
+        <div class="hud-sysinfo">
+          <span class="tactical-sig yellow"><span class="on"></span><span class="on"></span><span></span><span></span></span>
+          <span class="tactical-batt"><i></i><i></i><i></i></span>
+          <span class="hud-time">21:07</span>
+        </div>
+      </div>
+      <div class="hud-subbar"><span>WIFI LINK</span><span class="hud-mode yellow">CONNECTING...</span></div>
+      <div class="hud-chiseled-frame yellow"><span class="c-tl"></span><span class="c-tr"></span><span class="c-bl"></span><span class="c-br"></span></div>
+      <div class="wifi-conn-view">
+        <div class="radar-sweep-box"><div class="radar-center"></div><div class="radar-ring"></div></div>
+        <div class="conn-handshake-card">
+          <div class="row-label">TARGET ACCESS POINT:</div>
+          <div class="row-ssid">Cyber_Lab_5G</div>
+          <div class="row-diag">WPA2 HANDSHAKE [DHCP]</div>
+        </div>
+      </div>
+      <div class="telemetry-ticker"><span>SSID: Cyber_Lab_5G</span><span>RSSI: -58dBm</span><span>IP: ACQUIRING</span></div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap">OK</span> 中止取消</div>
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 长按重选</div>
+      </div>
+    `,
+    auth: `
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag">AUTH</span><span class="hud-brand-text">小智对码</span></div>
+        <div class="hud-sysinfo">
+          <span class="tactical-sig"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></span>
+          <span class="tactical-batt"><i></i><i></i><i></i></span>
+          <span class="hud-time">21:08</span>
+        </div>
+      </div>
+      <div class="hud-subbar"><span>PAIRING</span><span class="hud-mode">WAIT_BINDING</span></div>
+      <div class="hud-chiseled-frame"><span class="c-tl"></span><span class="c-tr"></span><span class="c-bl"></span><span class="c-br"></span></div>
+      <div class="auth-pairing-view">
+        <div class="pairing-hex-panel">
+          <div class="auth-title">DEVICE PAIRING PIN</div>
+          <div class="auth-pin">849204</div>
+          <div class="auth-tip">请在控制台或小程序输入 PIN 完成激活</div>
+        </div>
+        <div class="auth-log-stream">
+          <div class="log-active">&gt;&gt; WAITING FOR CLOUD ACTIVATION...</div>
+        </div>
+      </div>
+      <div class="telemetry-ticker"><span>MAC: 34:85:18:A2:7F</span><span>TOKEN: PENDING</span><span>ACT: READY</span></div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap act-cyan">OK</span> 刷新状态</div>
+        <div class="hud-foot-cell"><span class="hud-keycap">OK</span> 长按返回</div>
+      </div>
+    `,
+    listening: `
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag" style="background:var(--cp-red);color:#fff">REC</span><span class="hud-brand-text">语音识别</span></div>
+        <div class="hud-sysinfo">
+          <span class="tactical-sig"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></span>
+          <span class="tactical-batt"><i></i><i></i><i></i></span>
+          <span class="hud-time">21:08</span>
+        </div>
+      </div>
+      <div class="hud-subbar"><span>VOICE INPUT</span><span class="hud-mode red">● SAMPLING...</span></div>
+      <div class="hud-chiseled-frame red"><span class="c-tl"></span><span class="c-tr"></span><span class="c-bl"></span><span class="c-br"></span></div>
+      <div class="vocal-pulse-view">
+        <div class="spectrum-container">
+          <span class="spectrum-bar" style="height:12px"></span>
+          <span class="spectrum-bar" style="height:26px"></span>
+          <span class="spectrum-bar" style="height:46px"></span>
+          <span class="spectrum-bar" style="height:32px"></span>
+          <span class="spectrum-bar" style="height:50px"></span>
+          <span class="spectrum-bar" style="height:38px"></span>
+          <span class="spectrum-bar" style="height:22px"></span>
+          <span class="spectrum-bar" style="height:42px"></span>
+          <span class="spectrum-bar" style="height:16px"></span>
+        </div>
+        <div class="vocal-query-card">
+          <div class="vq-head">VOICE CAPTURE ACTIVE</div>
+          <div class="vq-text">正在录音中...</div>
+          <div class="vq-status">按 OK 键结束录音并发送检索</div>
+        </div>
+      </div>
+      <div class="telemetry-ticker"><span>CODEC: OPUS</span><span>SAMPLE: 16kHz</span><span>MIC: ES8311</span></div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap act-red">OK</span> 结束录音</div>
+        <div class="hud-foot-cell"><span class="hud-keycap">▲▼</span> 取消</div>
+      </div>
+    `,
+    fullscreen: `
+      <div class="scanline-overlay"></div>
+      <div class="fs-optics-stage">
+        <div class="fs-letterbox-top">
+          <span class="fs-top-query">“街头的深夜食堂”</span>
+          <span class="fs-top-index">01/12</span>
+        </div>
+        <div class="fs-video-viewport">
+          <div class="fs-sim-scene">
+            <div class="sim-bldg"></div>
+            <div class="sim-neon">深夜食堂</div>
+          </div>
+        </div>
+        <div class="fs-letterbox-bottom"></div>
+      </div>
+    `,
+    settings: `
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag">CFG</span><span class="hud-brand-text">控制台</span></div>
+        <div class="hud-sysinfo"><span class="hud-time">21:10</span></div>
+      </div>
+      <div class="hud-subbar"><span>SETTINGS</span><span class="hud-mode">4 ITEMS</span></div>
+      <div class="kernel-menu-view">
+        <div class="kernel-sec-title"><span>PARAM CONTROL</span><span style="color:#526d8a">NVS: ACTIVE</span></div>
+        <div class="kernel-row selected">
+          <span class="k-name"><span class="k-cursor">&gt;&gt;</span>音量控制</span>
+          <div class="fader-ladder" id="fader-live">
+            <span class="fill"></span><span class="fill"></span><span class="fill"></span><span class="fill"></span><span class="fill"></span>
+            <span class="fill"></span><span class="fill"></span><span></span><span></span><span></span>
+            <b id="fader-num" style="font-size:10px;margin-left:4px;color:var(--cp-yellow)">70%</b>
+          </div>
+        </div>
+        <div class="kernel-row"><span class="k-name"><span class="k-cursor">&gt;&gt;</span>网络配置 (Wi-Fi)</span><span style="font-size:10px;color:#738ea8">Cyber_5G</span></div>
+        <div class="kernel-row"><span class="k-name"><span class="k-cursor">&gt;&gt;</span>搜索服务地址</span><span style="font-size:10px;color:#738ea8">:8000</span></div>
+        <div class="kernel-row"><span class="k-name"><span class="k-cursor">&gt;&gt;</span>返回主页面</span><span style="font-size:10px;color:#738ea8">ESC</span></div>
+      </div>
+      <div class="telemetry-ticker"><span>FLASH: 4MB</span><span>IDF: v5.5.5</span><span>NVS: ACTIVE</span></div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap">▲▼</span> 调节/切换</div>
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 确认/返回</div>
+      </div>
+    `,
+    offline: `
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag" style="background:var(--cp-red);color:#fff">ERR</span><span class="hud-brand-text">离线警报</span></div>
+        <div class="hud-sysinfo">
+          <span class="tactical-sig red"><span></span><span></span><span></span><span></span></span>
+          <span class="tactical-batt"><i></i><i></i><i></i></span>
+          <span class="hud-time">00:00</span>
+        </div>
+      </div>
+      <div class="hud-subbar"><span>NETWORK OFFLINE</span><span class="hud-mode red">NO AP CONFIGURED</span></div>
+      <div class="hud-chiseled-frame red"><span class="c-tl"></span><span class="c-tr"></span><span class="c-bl"></span><span class="c-br"></span></div>
+      <div class="offline-alert-view">
+        <div class="hazard-bar"></div>
+        <div class="alert-oct-box">!</div>
+        <h3>未检测到网络链路</h3>
+        <div class="err-code">ERR_NO_WIFI_CREDENTIALS</div>
+        <div class="alert-desc">首次启动或未配置网络，请配置 Wi-Fi 接入视频搜索引擎与小智服务</div>
+        <div class="scan-trigger-card">
+          <span class="tactical-sig yellow"><span class="on"></span><span class="on"></span><span></span><span></span></span>
+          <span>按 OK 开始扫描周围 Wi-Fi</span>
+        </div>
+      </div>
+      <div class="telemetry-ticker"><span>SSID: NULL</span><span>IP: 0.0.0.0</span><span>RADAR: READY</span></div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 立即扫网</div>
+        <div class="hud-foot-cell"><span class="hud-keycap">OK</span> 长按重试</div>
+      </div>
+    `,
+    aplist: `
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag">SCAN</span><span class="hud-brand-text">Wi-Fi 列表</span></div>
+        <div class="hud-sysinfo"><span class="hud-time">00:01</span></div>
+      </div>
+      <div class="hud-subbar"><span>WIFI LIST</span><span class="hud-mode">5 APs FOUND</span></div>
+      <div class="ap-scanner-view">
+        <div class="ap-item-row selected">
+          <div class="ap-ssid"><svg class="ap-ico" viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z"/></svg>Cyber_Lab_5G</div>
+          <div class="ap-rssi"><span>-52dBm</span><span class="tactical-sig yellow"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></span></div>
+        </div>
+        <div class="ap-item-row">
+          <div class="ap-ssid"><svg class="ap-ico" viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z"/></svg>Office_IoT_2.4G</div>
+          <div class="ap-rssi"><span>-63dBm</span><span class="tactical-sig"><span class="on"></span><span class="on"></span><span class="on"></span><span></span></span></div>
+        </div>
+        <div class="ap-item-row">
+          <div class="ap-ssid"><svg class="ap-ico open" viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5h2a3 3 0 0 1 6 0v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5z"/></svg>Free_Coffee_Net</div>
+          <div class="ap-rssi"><span>-70dBm</span><span class="tactical-sig"><span class="on"></span><span class="on"></span><span></span><span></span></span></div>
+        </div>
+        <div class="ap-item-row">
+          <div class="ap-ssid"><svg class="ap-ico" viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z"/></svg>SmartHome_7B</div>
+          <div class="ap-rssi"><span>-82dBm</span><span class="tactical-sig"><span class="on"></span><span></span><span></span><span></span></span></div>
+        </div>
+      </div>
+      <div class="telemetry-ticker"><span>SORT: RSSI_DESC</span><span>MODE: STATION</span></div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap">▲▼</span> 选择 AP</div>
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 输入密码</div>
+      </div>
+    `,
+    keyboard: `
+      <div class="scanline-overlay"></div>
+      <div class="hud-topbar">
+        <div class="hud-brand"><span class="hud-brand-tag">KEY</span><span class="hud-brand-text">密码输入</span></div>
+        <div class="hud-sysinfo"><span class="hud-time">00:02</span></div>
+      </div>
+      <div class="hud-subbar"><span>SSID: Cyber_Lab_5G</span><span class="hud-mode">LEN: 8</span></div>
+      <div class="cyber-matrix-kbd-view">
+        <div class="kbd-target-header"><span>PASSWORD TERMINAL</span><span id="live-key-label" style="color:var(--cp-cyan)">CHAR: [ i ]</span></div>
+        <div class="kbd-input-slot" id="live-input-val">••••••••<span class="cursor-blink"></span></div>
+        <div class="grid-matrix-6x5" id="live-matrix">
+          <div class="matrix-cell">a</div><div class="matrix-cell">b</div><div class="matrix-cell">c</div><div class="matrix-cell">d</div><div class="matrix-cell">e</div><div class="matrix-cell">f</div>
+          <div class="matrix-cell">g</div><div class="matrix-cell">h</div><div class="matrix-cell selected">i</div><div class="matrix-cell">j</div><div class="matrix-cell">k</div><div class="matrix-cell">l</div>
+          <div class="matrix-cell">m</div><div class="matrix-cell">n</div><div class="matrix-cell">o</div><div class="matrix-cell">p</div><div class="matrix-cell">q</div><div class="matrix-cell">r</div>
+          <div class="matrix-cell">s</div><div class="matrix-cell">t</div><div class="matrix-cell">u</div><div class="matrix-cell">v</div><div class="matrix-cell">w</div><div class="matrix-cell">x</div>
+          <div class="matrix-cell">y</div><div class="matrix-cell">z</div><div class="matrix-cell fn">ABC</div><div class="matrix-cell fn">123</div><div class="matrix-cell fn">&lt;</div><div class="matrix-cell fn go">GO</div>
+        </div>
+      </div>
+      <div class="telemetry-ticker"><span>HOLD ▲▼: JUMP 6 KEYS</span><span>OK: INPUT</span></div>
+      <div class="hud-footer">
+        <div class="hud-foot-cell"><span class="hud-keycap">▲▼</span> 移动光标</div>
+        <div class="hud-foot-cell"><span class="hud-keycap act-yellow">OK</span> 键入 / 长按返回</div>
+      </div>
+    `
+  };
+
+  let curSimScene = 'idle';
+  let deckVol = 7;
+  let deckKeyIdx = 8; // 'i'
+  const matrixKeys = [
+    'a','b','c','d','e','f',
+    'g','h','i','j','k','l',
+    'm','n','o','p','q','r',
+    's','t','u','v','w','x',
+    'y','z','ABC','123','<','GO'
+  ];
+
+  function deckSwitch(sceneKey) {
+    curSimScene = sceneKey;
+    document.querySelectorAll('.scene-btn').forEach(b => b.classList.remove('active'));
+    event && event.target && event.target.classList.add('active');
+
+    const vp = document.getElementById('deck-vp');
+    const lcd = document.getElementById('deck-lcd');
+
+    if (sceneKey === 'fullscreen') {
+      vp.classList.add('landscape');
+      lcd.classList.add('landscape-mode');
+    } else {
+      vp.classList.remove('landscape');
+      lcd.classList.remove('landscape-mode');
+    }
+
+    lcd.innerHTML = deckScreens[sceneKey];
+    document.getElementById('deck-log').innerText = `CURRENT COCKPIT SCREEN: [ ${sceneKey.toUpperCase()} ]`;
+  }
+
+  function deckKey(type) {
+    const log = document.getElementById('deck-log');
+    log.innerText = `HARDWARE ADC TRIGGER: [ ${type} ] in [ ${curSimScene.toUpperCase()} ]`;
+
+    if (curSimScene === 'settings') {
+      if (type === 'UP' && deckVol < 10) deckVol++;
+      if (type === 'DOWN' && deckVol > 0) deckVol--;
+      const ladder = document.getElementById('fader-live');
+      const num = document.getElementById('fader-num');
+      if (ladder && num) {
+        let spans = '';
+        for (let i = 0; i < 10; i++) {
+          spans += `<span class="${i < deckVol ? 'fill' : ''}"></span>`;
+        }
+        ladder.innerHTML = spans + `<b id="fader-num" style="font-size:10px;margin-left:4px;color:var(--cp-yellow)">${deckVol * 10}%</b>`;
+      }
+    } else if (curSimScene === 'keyboard') {
+      const cells = document.querySelectorAll('#live-matrix .matrix-cell');
+      if (cells.length > 0) {
+        cells[deckKeyIdx].classList.remove('selected');
+        if (type === 'UP') {
+          deckKeyIdx = (deckKeyIdx - 1 + cells.length) % cells.length;
+        } else if (type === 'DOWN') {
+          deckKeyIdx = (deckKeyIdx + 1) % cells.length;
+        } else if (type === 'OK') {
+          const valBox = document.getElementById('live-input-val');
+          if (matrixKeys[deckKeyIdx] === '<') {
+            valBox.innerHTML = valBox.innerText.slice(0, -2) + '<span class="cursor-blink"></span>';
+          } else if (matrixKeys[deckKeyIdx] === 'GO') {
+            log.innerText = 'GO CONFIRMED -> INITIATING WI-FI CONNECTION...';
+            setTimeout(() => deckSwitch('connecting'), 600);
+            return;
+          } else {
+            valBox.innerHTML = valBox.innerText.slice(0, -1) + matrixKeys[deckKeyIdx] + '<span class="cursor-blink"></span>';
+          }
+        }
+        cells[deckKeyIdx].classList.add('selected');
+        document.getElementById('live-key-label').innerText = `CHAR: [ ${matrixKeys[deckKeyIdx]} ]`;
+      }
+    } else if (curSimScene === 'idle' && type === 'OK') {
+      deckSwitch('listening');
+    } else if (curSimScene === 'listening' && type === 'OK') {
+      deckSwitch('fullscreen');
+    } else if (curSimScene === 'fullscreen' && type === 'OK') {
+      deckSwitch('idle');
+    } else if (curSimScene === 'offline' && type === 'OK') {
+      deckSwitch('aplist');
+    } else if (curSimScene === 'aplist' && type === 'OK') {
+      deckSwitch('keyboard');
+    }
+  }
+
+  // 页面启动加载
+  deckSwitch('idle');
+</script>
+
+</body>
+</html>

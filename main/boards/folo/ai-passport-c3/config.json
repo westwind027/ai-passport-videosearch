@@ -1,0 +1,18 @@
+{
+    "manufacturer": "folo",
+    "type": "folo-ai-passport-c3",
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "folo-ai-passport-c3",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\"",
+                "CONFIG_WAKE_WORD_DISABLED=y",
+                "CONFIG_USE_ESP_WAKE_WORD=n",
+                "CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=8",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y"
+            ]
+        }
+    ]
+}
