@@ -4,6 +4,20 @@
 
 本项目基于开源项目 [78/xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) 的 2.4.2 版本适配，保留原项目 MIT 许可证。具体来源与修改范围见 [NOTICE](NOTICE)。
 
+> English version: [README.en.md](README.en.md)
+
+## 后端服务依赖
+
+本固件的语音视频搜索功能依赖独立的后端项目 [westwind027/video-semantic-search](https://github.com/westwind027/video-semantic-search)。该项目负责视频解析、场景索引、语义检索和预览图片 URL 提供；本固件负责语音采集、通过小智协议获取 ASR 结果、调用搜索接口以及在设备屏幕上展示结果。
+
+固件默认调用场景搜索接口：
+
+```text
+GET /v1/search?q=<URL 编码后的查询词>&limit=12&mode=scene
+```
+
+返回结果需要包含可由设备访问的预览图片地址。固件优先读取 `image_url`、`preview_url`，并兼容后端场景结果中的 `scene.preview`；相对路径会自动拼接服务地址。后端的 `/static/frames/...` 支持 `size=small` 和 `size=tiny` 图片变体，固件分别用于全屏查看和结果缩略图。
+
 ## 已支持功能
 
 - ESP32-C3，8 MB Flash，无 PSRAM
